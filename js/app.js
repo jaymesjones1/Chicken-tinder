@@ -94,11 +94,12 @@ function render() {
   chip.hidden = !state.me;
   if (state.me) chip.innerHTML = `<span>Swiping as</span> <b>${esc(PLAYERS[state.me])}</b>`;
 
-  if (!state.me) return show('who', renderWho);
+  // Admin doesn't need a player, so it's checked before the player picker.
   if (state.screen === 'admin') {
     const sig = [...state.restaurants.values()].map((r) => `${r.id}${r.name}${r.cuisine}${r.active}`).join('|');
     return show(`admin:${state.pass ? 1 : 0}:${sig}`, renderAdmin);
   }
+  if (!state.me) return show('who', renderWho);
 
   const d = derive();
   renderStatus(d);
@@ -290,7 +291,7 @@ function renderAdmin() {
         <form class="stack" data-form="pass">
           <label class="label" for="pass">Passcode</label>
           <input class="field" id="pass" name="pass" type="password" autocomplete="current-password" required>
-          ${state.store.demo ? `<p class="small">Demo mode passcode: <b>${esc(state.store.demoPass)}</b></p>` : ''}
+          ${state.store?.demo ? `<p class="small">Demo mode passcode: <b>${esc(state.store.demoPass)}</b></p>` : ''}
           <button class="btn btn-ink">Unlock</button>
         </form>
       </section>`;
