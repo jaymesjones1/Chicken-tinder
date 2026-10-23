@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#282323">
+  <title>Chicken Tinder</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23FFD31A'/%3E%3Cpath d='M3 4h3v1H3zM4 5h3v2H4zM2 7h1v1H2zM3 7h4v1H3zM4 8h9v1H4zM12 6h1v2h-1zM5 9h7v2H5zM6 11h1v2H6zM9 11h1v2H9z' fill='%23282323'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Space+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="backdrop" aria-hidden="true"></canvas>
+  <div class="app">
+    <header class="bar">
+      <a class="brand" href="./" aria-label="Chicken Tinder, home">
+        <span class="brand-chick" id="brand-chick"></span>
+        <span class="wordmark"><span class="w1">Chicken</span><span class="w2">Tinder</span></span>
+      </a>
+      <button class="who-chip" id="who-chip" hidden title="Switch player"></button>
+    </header>
+    <div class="status" id="status" aria-live="polite"></div>
+    <main id="view">
+      <section class="panel center"><p class="kicker">Warming the fryer…</p></section>
+    </main>
+    <footer class="foot">
+      <span id="mode"></span>
+      <button id="admin-link" class="link">Admin</button>
+    </footer>
+  </div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
