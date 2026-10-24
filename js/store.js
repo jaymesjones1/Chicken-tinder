@@ -140,13 +140,9 @@ function demoStore() {
       const data = read();
       const round = data.rounds.find((r) => r.id === roundId);
       if (!round) throw new Error('Round not found');
-      if (round.status !== 'open' || !round.lineup.includes(restaurantId)) return clone(round);
+      if (!round.lineup.includes(restaurantId)) return clone(round);
       const exists = data.swipes.some((s) => s.round_id === roundId && s.restaurant_id === restaurantId && s.player === player);
       if (!exists) data.swipes.push({ round_id: roundId, restaurant_id: restaurantId, player, liked });
-      if (liked && data.swipes.some((s) => s.round_id === roundId && s.restaurant_id === restaurantId && s.player !== player && s.liked)) {
-        round.status = 'matched';
-        round.match_id = restaurantId;
-      }
       write(data);
       return clone(round);
     },

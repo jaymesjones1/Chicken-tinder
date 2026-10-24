@@ -117,34 +117,24 @@ begin
   return r;
 end $$;
 
--- Records a swipe and declares a match the moment both players like the
--- same restaurant. Locking the round row serialises concurrent swipes.
+-- Records a swipe. A match is any restaurant both players liked; the
+-- client works those out from the swipes, so rounds never close early.
 create or replace function public.swipe(
   p_round uuid, p_restaurant uuid, p_player text, p_liked boolean
 ) returns public.rounds language plpgsql security definer set search_path = '' as $$
 declare r public.rounds;
 begin
-  select * into r from public.rounds where id = p_round for update;
+  select * into r from public.rounds where id = p_round;
   if not found then
     raise exception 'Round not found';
   end if;
-  if r.status <> 'open' or not (p_restaurant = any (r.lineup)) then
+  if not (p_restaurant = any (r.lineup)) then
     return r;
   end if;
 
   insert into public.swipes (round_id, restaurant_id, player, liked)
   values (p_round, p_restaurant, p_player, p_liked)
   on conflict do nothing;
-
-  if p_liked and exists (
-    select 1 from public.swipes
-     where round_id = p_round and restaurant_id = p_restaurant
-       and player <> p_player and liked
-  ) then
-    update public.rounds set status = 'matched', match_id = p_restaurant
-     where id = p_round
-    returning * into r;
-  end if;
   return r;
 end $$;
 

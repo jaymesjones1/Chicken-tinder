@@ -1,12 +1,16 @@
 # Chicken Tinder
 
 Two people, one list of restaurants, one card at a time. Swipe right for
-yep, left for nope. The first place you both say yep to wins.
+yep, left for nope. Every place you both say yep to is a match.
 
 - **Players:** Joobacca and JD. Each phone picks once and remembers.
 - **Rounds:** a round freezes a shuffled lineup, so you both see the same
   order. Either of you can start a new round from the result screen.
-- **No match?** You get the "closest calls": places only one of you liked.
+- **Matches:** the counter between Nope and Yep shows how many places
+  you've both liked. Matches pop up as they happen and you keep swiping;
+  tap the counter to see the list.
+- **End of the round:** once you're both through the list, you get every
+  match, or the "closest calls" (places only one of you liked) if none.
 - **Admin:** the Admin button (bottom right) unlocks the list editor with a
   passcode. Add, rename, switch off (keeps history) or delete restaurants.
   Changes apply from the next round.

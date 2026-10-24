@@ -78,13 +78,13 @@ function derive() {
     if (s.player === me) mine.set(s.restaurant_id, s.liked);
     else if (s.player === other) theirs.set(s.restaurant_id, s.liked);
   }
-  const base = { lineup, mine, theirs, other };
-  if (round.status === 'matched') return { ...base, kind: 'match' };
+  const matches = lineup.filter((id) => mine.get(id) && theirs.get(id));
   const queue = lineup.filter((id) => !mine.has(id));
-  if (queue.length) return { ...base, kind: 'deck', queue };
   const theirLeft = lineup.filter((id) => !theirs.has(id)).length;
-  if (theirLeft) return { ...base, kind: 'wait', theirLeft };
-  return { ...base, kind: 'nomatch' };
+  const base = { lineup, mine, theirs, other, matches, queue, theirLeft };
+  if (queue.length) return { ...base, kind: 'deck' };
+  if (theirLeft) return { ...base, kind: 'wait' };
+  return { ...base, kind: 'done' };
 }
 
 // Rendering ---------------------------------------------------------------
@@ -103,9 +103,40 @@ function render() {
 
   const d = derive();
   renderStatus(d);
+  announceMatches(d);
+  if (state.screen === 'matches' && d.matches) {
+    return show(`matches:${state.round.id}:${d.matches.join()}:${d.kind}`, () => renderMatches(d));
+  }
   if (d.kind === 'deck') return show('deck', () => renderDeck(d), () => syncDeck(d));
-  const key = `${d.kind}:${state.round?.id}:${d.kind === 'wait' ? d.theirLeft : ''}`;
-  show(key, () => ({ start: renderStart, empty: renderEmpty, wait: renderWait, match: renderMatch, nomatch: renderNoMatch })[d.kind](d));
+  const key = `${d.kind}:${state.round?.id}:${d.theirLeft}:${d.matches?.length}`;
+  show(key, () => ({ start: renderStart, empty: renderEmpty, wait: renderWait, done: renderDone })[d.kind](d));
+}
+
+// Celebrate matches as they happen, whoever's swipe made them. Matches
+// already there when a round is first loaded are counted, not celebrated.
+function announceMatches(d) {
+  if (!d.matches) return;
+  const roundId = state.round.id;
+  if (state.seen?.round !== roundId) {
+    state.seen = { round: roundId, ids: new Set(d.matches) };
+    return;
+  }
+  const fresh = d.matches.filter((id) => !state.seen.ids.has(id));
+  if (!fresh.length) return;
+  fresh.forEach((id) => state.seen.ids.add(id));
+  backdrop.celebrate();
+  const names = fresh.map((id) => state.restaurants.get(id)?.name).filter(Boolean);
+  toast(`It’s a match: ${names.join(', ')}`, 'match');
+  state.bumpAt = Date.now();
+}
+
+function matchButton(d) {
+  const n = d.matches.length;
+  return `
+    <button class="match-btn${n ? ' has' : ''}${Date.now() - (state.bumpAt || 0) < 1000 ? ' bump' : ''}" id="match-count" data-act="matches"
+      aria-label="${n} matched. Show matches.">
+      <b>${pad(n)}</b><span>Matched</span>
+    </button>`;
 }
 
 // Only rebuild a screen when it changes, so live updates don't reset focus
@@ -154,7 +185,7 @@ function renderStart() {
     <section class="panel center">
       ${chickenSVG('big-chick peck')}
       <h1 class="headline">Dinner<br>is a<br>stand-off.</h1>
-      <p class="kicker">Swipe until you both say yep to the same place.</p>
+      <p class="kicker">Swipe the list. Every place you both say yep to is a match.</p>
       <button class="btn btn-ink" data-act="new-round">Start a round</button>
     </section>`;
 }
@@ -196,6 +227,7 @@ function renderDeck() {
       <div class="deck" id="deck"></div>
       <div class="actions">
         <button class="btn btn-nope" data-act="nope" aria-label="Nope (left arrow)"><span class="glyph">✕</span> Nope</button>
+        <span id="match-slot"></span>
         <button class="btn btn-yep" data-act="yep" aria-label="Yep (right arrow)">Yep <span class="glyph">✓</span></button>
       </div>
     </section>`;
@@ -205,6 +237,12 @@ function renderDeck() {
 function syncDeck(d) {
   const deck = $('#deck');
   if (!deck) return;
+  const slot = $('#match-slot');
+  const count = String(d.matches.length);
+  if (slot.dataset.count !== count) {
+    slot.innerHTML = matchButton(d);
+    slot.dataset.count = count;
+  }
   const ids = d.queue.slice(0, 3);
   for (const el of deck.querySelectorAll('.card:not(.gone)')) {
     if (!ids.includes(el.dataset.id)) el.remove();
@@ -229,42 +267,55 @@ function renderWait(d) {
       ${chickenSVG('big-chick peck')}
       <h1 class="headline">Your turn’s<br>done.</h1>
       <p class="kicker">Waiting on ${esc(other)}: <b>${d.theirLeft}</b> left to swipe.</p>
-      <p class="small">This screen updates on its own. You’ll see the match the moment it happens.</p>
+      <p class="small">This screen updates on its own. New matches show up the moment they happen.</p>
+      ${matchButton(d)}
     </section>`;
 }
 
-function renderMatch() {
-  const r = state.restaurants.get(state.round.match_id);
-  backdrop.celebrate();
-  if (!r) {
+function matchListHTML(ids) {
+  return `
+    <ol class="match-list">
+      ${ids.map((id) => {
+        const r = state.restaurants.get(id);
+        const art = posterFor(r.name);
+        const [bg] = schemeFor(r.name);
+        return `
+          <li>
+            <span class="ml-art" style="--art-bg: var(--${bg})">${art ? `<img src="${art}" alt="">` : ''}</span>
+            <span class="ml-text"><span class="ml-name">${esc(r.name)}</span><span class="ml-cuisine">${esc(r.cuisine)}</span></span>
+          </li>`;
+      }).join('')}
+    </ol>`;
+}
+
+function renderMatches(d) {
+  const n = d.matches.length;
+  const back = d.kind === 'deck'
+    ? `<button class="btn btn-ink" data-act="close-matches">Keep swiping</button>`
+    : `<button class="btn btn-ink" data-act="close-matches">Back</button>`;
+  return `
+    <section class="panel">
+      <h1 class="headline tight">${pad(n)}<br>Matched</h1>
+      ${n ? `<p class="kicker">You both said yep to these.</p>${matchListHTML(d.matches)}`
+        : `<p class="kicker">No matches yet. Keep going.</p>`}
+      ${back}
+    </section>`;
+}
+
+function renderDone(d) {
+  const n = d.matches.length;
+  if (n) {
     return `
-      <section class="panel center">
-        <h1 class="headline">It was a<br>match…</h1>
-        <p class="kicker">…but that restaurant has since been removed from the list.</p>
-        <button class="btn btn-ink" data-act="new-round">New round</button>
+      <section class="result">
+        <p class="banner"><span>${n === 1 ? 'It’s a match' : `${n} matches`}</span><span>${n === 1 ? 'It’s a match' : `${n} matches`}</span><span>${n === 1 ? 'It’s a match' : `${n} matches`}</span></p>
+        <div class="panel">
+          <h1 class="headline tight">${n === 1 ? 'Dinner<br>is decided.' : `${pad(n)}<br>Matches.`}</h1>
+          <p class="kicker">You’re both through the list. ${n === 1 ? 'No take-backs.' : 'Pick one, or go again to narrow it down.'}</p>
+          ${matchListHTML(d.matches)}
+          <button class="btn btn-ink" data-act="new-round">New round</button>
+        </div>
       </section>`;
   }
-  const art = posterFor(r.name);
-  const [bg] = schemeFor(r.name);
-  return `
-    <section class="result">
-      <p class="banner"><span>It’s a match</span><span>It’s a match</span><span>It’s a match</span></p>
-      <article class="card result-card">
-        <div class="card-art" style="--art-bg: var(--${bg})">
-          ${art ? `<img src="${art}" alt="">` : ''}
-          <span class="card-num">Both said yep</span>
-        </div>
-        <div class="card-body">
-          <h2 class="card-name${r.name.length > 16 ? ' long' : r.name.length > 10 ? ' mid' : ''}">${esc(r.name)}</h2>
-          <p class="card-cuisine">${esc(r.cuisine || '—')}</p>
-        </div>
-      </article>
-      <p class="kicker">Dinner is decided. No take-backs.</p>
-      <button class="btn btn-ink" data-act="new-round">New round</button>
-    </section>`;
-}
-
-function renderNoMatch(d) {
   const close = d.lineup.filter((id) => d.mine.get(id) !== d.theirs.get(id)).map((id) => ({
     r: state.restaurants.get(id),
     who: d.mine.get(id) ? PLAYERS[state.me] : PLAYERS[d.other],
@@ -427,6 +478,12 @@ document.addEventListener('click', async (e) => {
   }
   switch (btn.dataset.act) {
     case 'yep': return commit(true);
+    case 'matches':
+      state.screen = 'matches';
+      return render();
+    case 'close-matches':
+      state.screen = 'play';
+      return render();
     case 'nope': return commit(false);
     case 'admin':
       state.screen = 'admin';
@@ -525,9 +582,10 @@ async function run(btn, fn) {
 }
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, kind = '') {
   const el = $('#toast');
   el.textContent = msg;
+  el.className = `toast ${kind}`;
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, 4000);
